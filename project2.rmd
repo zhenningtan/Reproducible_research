@@ -1,0 +1,155 @@
+---
+title: "Project 2: Explore US NOAA Storm database"
+author: "Zhenning Tan"
+date: "September 17, 2016"
+output: github_document
+---
+
+## Introduction
+
+Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
+
+This project involves exploring the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.
+
+### Synopsis
+In this project, I analyzed the storm database and found the most severe weather conditions that cause the most damage on population health and economics. Tornado, thunderstorm wind, excessive heat, flood and lighting are the top 5 conditions that caused population fatality and injury. Especially, tornados caused almost 100 thousand fatalities and injuries Tornados, thunderstorm wind, flash flood, hail and flood are the top 5 conditions for economic damage, causing at least 1 million dollar loss. The severe weather conditions which impact great population health usually cause great economic loss as well. 
+
+
+
+### Data Processing
+
+```{r global_options}
+knitr::opts_chunk$set(fig.width=12, fig.height=8, warning=FALSE, message=FALSE)
+```
+
+Download and read in data file
+```{r read_data, cache = TRUE}
+if(!file.exists("StormData.csv")){
+  fileurl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+  download.file(fileurl, destfile = "StormData.csv")
+}
+
+df <- read.csv("StormData.csv")
+dim(df)
+head(df)
+str(df)
+
+#check what types of events are there
+sort(unique(df$EVTYPE))
+```
+
+The values in EVTYPE column are messy. I observed the following issues:
+* Upper case and lower case are used. 
+* Some values have extra space. 
+* Mis-spelling and typo, such as avalance (avalanche), erosin (erosion), and 075 (0.75),etc
+
+I cleaned up the inconsistency in EVTYPE values and stored them in a new column clean.type. However, the cleanup is not comprehensive. As long as the majority entries follow the same code, the messy values should not affact analysis much. 
+
+```{r}
+# convert upper case to lower case
+df$clean.type <- tolower(df$EVTYPE)
+
+# remove extra blank space in the beginning and end, as well as the word "and"
+df$clean.type <- sub("^[ ]+", "", df$clean.type)
+df$clean.type <- sub("[ ]+$", "", df$clean.type)
+df$clean.type <- sub("and ", "", df$clean.type)
+
+# replace "/", "-" with empty space
+df$clean.type <- sub("[/]+", " ", df$clean.type)
+df$clean.type <- sub("-", " ", df$clean.type)
+df$clean.type <- sub("  ", " ", df$clean.type)
+
+# fix typos and combine phrases with same meaning
+df$clean.type <- sub("avalance", "avalanche", df$clean.type)
+df$clean.type <- sub("beach erosin", "beach erosion", df$clean.type)
+df$clean.type <- sub("bitter wind chill temperatures", 
+                     "bitter wind chill", df$clean.type)
+df$clean.type <- sub("s$", "", df$clean.type)
+df$clean.type <- sub("ing", "", df$clean.type)
+df$clean.type <- sub("winds|wnd", "wind", df$clean.type)
+df$clean.type <- sub("tornadoe|torndao", "tornado", df$clean.type)
+df$clean.type <- sub("lightn|light|lightn.", "lighting", df$clean.type)
+df$clean.type <- sub("tstm|tunderstorm|thunderstorms|thundertorm|thunderstrom|
+                 thunerstorm|thundertsorm|thunerstorm", 
+                 "thunderstorm", df$clean.type)
+df$clean.type <- sub("thunderstormw", "thunderstorm wind", df$clean.type)
+df$clean.type <- sub("wild fire|wild forest fire", "wildfire", df$clean.type)
+df$clean.type <- sub("water spount", "waterspout", df$clean.type)
+df$clean.type <- sub("sml", "small", df$clean.type)
+df$clean.type <- sub("fld|floodin", "flood", df$clean.type)
+df$clean.type <- sub("hvy", "heavy", df$clean.type)
+
+sort(unique(df$clean.type))
+```
+
+
+
+### Results
+
+#### 1. Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+
+```{r}
+library(dplyr)
+```
+
+Analyze the impact of events on total fatalities and injuries 
+```{r}
+events.pop <- df%>%
+            group_by(clean.type)%>%
+            summarise(total.fatality = sum(FATALITIES),
+                      total.injury = sum(INJURIES),
+                      total.pop.health = total.fatality + total.injury,
+                      total.events = n())
+
+head(events.pop)
+dim(events.pop)
+
+# There are more than 700 unique types of weather conditions due to inconsistency in naming. I only consider the top 20 events that caused the highest fatalities and injuries. 
+
+# arrange and subset only the top 20 events
+events.pop <- arrange(events.pop, desc(total.pop.health))[1:20,]
+
+events.pop
+
+events.pop.names <- events.pop$clean.type
+
+barplot(log10(events.pop$total.pop.health[1:10]), 
+        names.arg = events.pop$clean.type[1:10],
+        xlab = "Events", ylab = "Total fatalities and injuries, log10",
+        main = "Top 10 events that caused the most impact on health",
+        cex.names = 0.8)
+```
+
+The top 20 events that caused the most fatalities and injuries are `r events.pop.names`. 
+
+
+#### 2. Across the United States, which types of events have the greatest economic consequences?
+
+```{r}
+events.eco <- df %>%
+            group_by(clean.type) %>%
+            summarise(total.prop = sum(PROPDMG),
+                      total.crop = sum(CROPDMG),
+                      total.eco = total.prop + total.crop,
+                      total.events = n())
+
+head(events.eco)
+dim(events.eco)
+
+# arrange and subset only the top 20 events
+events.eco <- arrange(events.eco, desc(total.eco))[1:20,]
+events.eco
+
+events.eco.names <- events.eco$clean.type
+
+barplot(events.eco$total.eco[1:10], 
+        names.arg = events.eco$clean.type[1:10],
+        xlab = "Events", ylab = "Total economic cost, Dolloars",
+        main = "Top 10 events that caused the most economic cost",
+        cex.names = 0.8)
+
+intersect(events.eco.names,events.pop.names )
+```
+
+The top 20 events that caused the most fatalities and injuries are `r events.pop.names`. There are 13 events listed on the top 20 list for both population health and economic damage. 
+
