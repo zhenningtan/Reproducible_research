@@ -1,4 +1,5 @@
 # Reproducible_research
-Using R Markdown file to create analysis 
 
-This repo contains project 1 and 2 for Reproducible Research using R, Coursera, JHU
+Reproducible Research using R, Coursera, JHU
+Project 1: Exploratory data analysis of personal activity monitoring device data
+Project 2: Exploratory data analysis of US NOAA Storm data 
